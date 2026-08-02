@@ -1,84 +1,168 @@
-/*
- * GlyphCraft Icons — permanent CDN script
- * https://your-icon-library.vercel.app/cdn/icons.js
- *
- * Usage in any HTML page:
- *   <link rel="stylesheet" href="https://your-icon-library.vercel.app/cdn/glyphcraft.css">
- *   <script src="https://your-icon-library.vercel.app/cdn/icons.js" defer></script>
- *   ...
- *   <i class="myicon myicon-home"></i>
- */
-(function () {
-  var API_BASE = (function () {
-    try {
-      var src = document.currentScript && document.currentScript.src;
-      if (!src) return '';
-      return new URL(src).origin;
-    } catch (e) {
-      return '';
-    }
-  })();
+const { supabaseRequest } = require('./_lib/supabase');
+const { requireAdmin } = require('./_lib/auth');
 
-  function extractIconName(classList) {
-    for (var i = 0; i < classList.length; i++) {
-      if (classList[i].indexOf('myicon-') === 0) {
-        var candidate = classList[i].slice('myicon-'.length);
-        // ignore the built-in size/utility helper classes
-        if (['sm', 'lg', 'xl', '2x', '3x', 'spin'].indexOf(candidate) === -1) {
-          return candidate;
+function slugify(name) {
+  return String(name)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function setCors(res) {
+  // GET is public read-only data (needed so any external website can load the
+  // icon list via the CDN script). Write operations always require the admin
+  // token regardless of origin, so allowing CORS here does not weaken security.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+module.exports = async (req, res) => {
+  setCors(res);
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
+  try {
+    if (req.method === 'GET') {
+      const category = req.query.category;
+      const search = req.query.search;
+      let path = 'icons?select=id,name,svg_code,category,created_at&order=created_at.desc';
+      if (category === 'colorful' || category === 'mono') {
+        path += `&category=eq.${category}`;
+      }
+      if (search) {
+        path += `&name=ilike.*${encodeURIComponent(String(search))}*`;
+      }
+      const data = await supabaseRequest(path, { method: 'GET' });
+      res.status(200).json({ icons: data });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      const admin = requireAdmin(req);
+      if (!admin) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      let body = req.body;
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch (e) {
+          body = {};
         }
       }
-    }
-    return null;
-  }
 
-  function renderIcon(el, svgMarkup) {
-    el.innerHTML = svgMarkup;
-    var svg = el.querySelector('svg');
-    if (svg) {
-      svg.removeAttribute('width');
-      svg.removeAttribute('height');
-    }
-  }
+      const items = Array.isArray(body.icons) ? body.icons : [body];
+      const results = [];
+      const errors = [];
 
-  function applyIcons(icons) {
-    var map = {};
-    icons.forEach(function (icon) {
-      map[icon.name] = icon.svg_code;
-    });
+      for (const item of items) {
+        const { name, svg_code, category } = item || {};
+        if (!name || !svg_code || !category) {
+          errors.push({ name, error: 'Missing name, svg_code, or category' });
+          continue;
+        }
+        if (category !== 'colorful' && category !== 'mono') {
+          errors.push({ name, error: 'Category must be "colorful" or "mono"' });
+          continue;
+        }
+        const slug = slugify(name);
+        if (!slug) {
+          errors.push({ name, error: 'Invalid icon name' });
+          continue;
+        }
 
-    var elements = document.querySelectorAll('.myicon');
-    elements.forEach(function (el) {
-      var name = extractIconName(el.classList);
-      if (!name) return;
-      if (map[name]) {
-        renderIcon(el, map[name]);
-      } else {
-        console.warn('[GlyphCraft] Icon not found: "' + name + '"');
+        try {
+          const existing = await supabaseRequest(
+            `icons?select=id&name=eq.${encodeURIComponent(slug)}`,
+            { method: 'GET' }
+          );
+          if (existing && existing.length > 0) {
+            errors.push({ name: slug, error: 'Icon name already exists, choose a different name' });
+            continue;
+          }
+
+          const created = await supabaseRequest('icons', {
+            method: 'POST',
+            body: JSON.stringify({ name: slug, svg_code, category }),
+          });
+          results.push(Array.isArray(created) ? created[0] : created);
+        } catch (e) {
+          errors.push({ name: slug, error: e.message });
+        }
       }
-    });
-  }
 
-  function loadAndRender() {
-    fetch(API_BASE + '/api/icons')
-      .then(function (res) {
-        if (!res.ok) throw new Error('Failed to load icons from server');
-        return res.json();
-      })
-      .then(function (data) {
-        applyIcons(data.icons || []);
-      })
-      .catch(function (err) {
-        console.error('[GlyphCraft] ' + err.message);
+      const status = errors.length && !results.length ? 400 : 200;
+      res.status(status).json({ created: results, errors });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      const admin = requireAdmin(req);
+      if (!admin) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      let body = req.body;
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch (e) {
+          body = {};
+        }
+      }
+      const { name, svg_code, category } = body || {};
+      if (!name) {
+        res.status(400).json({ error: 'Icon name required' });
+        return;
+      }
+      const updateFields = {};
+      if (svg_code) updateFields.svg_code = svg_code;
+      if (category) {
+        if (category !== 'colorful' && category !== 'mono') {
+          res.status(400).json({ error: 'Category must be "colorful" or "mono"' });
+          return;
+        }
+        updateFields.category = category;
+      }
+      if (Object.keys(updateFields).length === 0) {
+        res.status(400).json({ error: 'Nothing to update' });
+        return;
+      }
+      const updated = await supabaseRequest(`icons?name=eq.${encodeURIComponent(name)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateFields),
       });
-  }
+      res.status(200).json({ updated });
+      return;
+    }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadAndRender);
-  } else {
-    loadAndRender();
-  }
+    if (req.method === 'DELETE') {
+      const admin = requireAdmin(req);
+      if (!admin) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      const name = req.query.name;
+      if (!name) {
+        res.status(400).json({ error: 'Icon name required' });
+        return;
+      }
+      await supabaseRequest(`icons?name=eq.${encodeURIComponent(String(name))}`, {
+        method: 'DELETE',
+      });
+      res.status(200).json({ deleted: name });
+      return;
+    }
 
-  // expose a manual reload hook, useful after dynamically adding new <i> tags
-  window.GlyphCraft = { reload: loadAndRender };
-})();
+    res.status(405).json({ error: 'Method not allowed' });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Server error' });
+  }
+};
