@@ -1,0 +1,10 @@
+{
+  "name": "glyphcraft-icon-library",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Font Awesome style icon library - HTML/React/Vue shortcodes, permanent Vercel CDN, Supabase storage",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
