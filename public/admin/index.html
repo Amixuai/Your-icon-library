@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System X — ColorIconLab</title>
+<link rel="stylesheet" href="/cdn/glyphcraft.css">
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #11151f; --border: #232838;
+    --text: #e6e9f0; --muted: #8a91a3; --accent: #6d5efc; --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 30px 20px; }
+  h1 { font-size: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; margin-top: 14px; }
+  input[type="email"], input[type="password"], input[type="text"], textarea, select {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: #0e1219; color: var(--text); font-size: 14px; font-family: inherit;
+  }
+  textarea { min-height: 100px; font-family: monospace; font-size: 12px; }
+  button {
+    margin-top: 16px; padding: 10px 18px; border-radius: 8px; border: none;
+    background: var(--accent); color: white; font-size: 14px; cursor: pointer; font-weight: 600;
+  }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.danger { background: var(--danger); }
+  .msg { margin-top: 12px; font-size: 13px; padding: 10px; border-radius: 8px; display: none; }
+  .msg.error { background: rgba(239,68,68,0.12); color: #f87171; display: block; }
+  .msg.success { background: rgba(34,197,94,0.12); color: #4ade80; display: block; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  .icon-preview { font-size: 22px; }
+  .del-btn { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 13px; margin: 0; padding: 4px 8px; }
+  #dashboard { display: none; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; }
+  .file-btn-row { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+  .file-btn-row input[type="file"] { display: none; }
+  .file-btn-label {
+    display: inline-block; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: #0e1219; color: var(--text); cursor: pointer; font-size: 13px; margin: 0;
+  }
+  .preview-box {
+    margin-top: 10px; padding: 20px; background: #0e1219; border: 1px dashed var(--border);
+    border-radius: 8px; text-align: center; min-height: 60px; display: flex; align-items: center; justify-content: center;
+  }
+  .preview-box svg { width: 40px; height: 40px; }
+  .preview-empty { color: var(--muted); font-size: 12px; }
+
+  .step-row { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:13px; }
+  .step-icon { width:18px; text-align:center; flex-shrink:0; }
+  .step-icon.pending { color: var(--muted); }
+  .step-icon.done { color: var(--accent-2, #22d3aa); }
+  .step-label { flex:1; color: var(--text); }
+  .step-detail { font-size:11px; color: var(--muted); }
+
+  .report-card { background:#0e1219; border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:10px; position:relative; }
+  .report-card .report-close { position:absolute; top:8px; right:10px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; margin:0; padding:0; }
+  .report-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+  .report-line { font-size:12px; color:var(--muted); margin:2px 0; }
+  .confirm-popover { margin-top:8px; background:#181c26; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:12px; }
+  .confirm-popover .btn { padding:5px 10px; font-size:12px; margin:0; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 18px; display:flex; align-items:center; gap:14px; z-index:200; box-shadow:0 8px 24px rgba(0,0,0,0.4); }
+  .toast button { margin:0; padding:6px 12px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loginView" class="card">
+    <h1>🔒 System X</h1>
+    <p class="hint" style="margin-top:0;">Enter your registered email and phone number. A one-time login link will be sent to you.</p>
+    <label>Email</label>
+    <input type="email" id="loginEmail" placeholder="Enter your email">
+    <label>Phone Number</label>
+    <input type="text" id="loginPhone" placeholder="Enter your phone number">
+    <button onclick="requestLoginLink()">Send Login Link</button>
+    <div id="loginMsg" class="msg"></div>
+    <div id="whatsappFallbackBox" style="display:none; margin-top:12px;">
+      <a id="whatsappFallbackLink" href="#" target="_blank" rel="noopener"
+         style="display:inline-block; padding:10px 16px; border-radius:8px; background:#25D366; color:#062e18; font-weight:600; text-decoration:none; font-size:14px;">
+        Get link via WhatsApp
+      </a>
+    </div>
+  </div>
+
+  <div id="dashboard">
+    <div class="top-bar">
+      <h1>System X — Icon Manager</h1>
+      <button class="secondary" onclick="logout()">Log out</button>
+    </div>
+
+    <div class="card">
+      <h1 style="font-size:16px;">CDN Link Manager</h1>
+      <p class="hint" style="margin-top:0;">
+        Rotate the public CDN link that external websites use. Pushing a new link
+        immediately kills the old one everywhere it's embedded. Unused public links
+        auto-expire after 7 days.
+      </p>
+
+      <div style="display:flex; align-items:center; gap:10px; margin-top:14px;">
+        <label style="display:flex; align-items:center; gap:8px; margin:0; cursor:pointer;">
+          <input type="checkbox" id="publicToggle" style="width:16px;height:16px;">
+          <span id="publicToggleLabel">Public (external sites can load icons)</span>
+        </label>
+      </div>
+
+      <div id="activeLinkBox" style="margin-top:14px;">
+        <div class="hint" id="activeLinkStatus">Loading current link status...</div>
+      </div>
+
+      <label style="margin-top:16px;">CSS Stylesheet Tag</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="activeCssTag" readonly style="font-family:monospace; font-size:11px;">
+        <button type="button" class="secondary" style="margin:0; white-space:nowrap;" id="copyCssBtn">Copy</button>
+      </div>
+
+      <label>JavaScript Script Tag</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="activeJsTag" readonly style="font-family:monospace; font-size:11px;">
+        <button type="button" class="secondary" style="margin:0; white-space:nowrap;" id="copyJsBtn">Copy</button>
+      </div>
+
+      <div class="row" style="margin-top:16px;">
+        <button type="button" id="generateLinkBtn">Generate CDN Link</button>
+        <button type="button" id="pushLinkBtn" disabled>Push (activate)</button>
+      </div>
+      <div id="pendingLinkBox" style="display:none; margin-top:10px; background:#0e1219; border:1px dashed var(--border); border-radius:8px; padding:10px;">
+        <div class="hint">New link generated — not live yet. Press "Push" to activate it (this deletes the old one).</div>
+        <div style="font-family:monospace; font-size:11px; margin-top:6px; word-break:break-all;" id="pendingCssTag"></div>
+        <div style="font-family:monospace; font-size:11px; word-break:break-all;" id="pendingJsTag"></div>
+      </div>
+
+      <div id="cdnLinkMsg" class="msg" style="margin-top:12px;"></div>
+
+      <details style="margin-top:18px;">
+        <summary style="cursor:pointer; color:var(--muted); font-size:13px;">Permanent Admin Link (for your own testing, never expires)</summary>
+        <div style="margin-top:10px;">
+          <div style="font-family:monospace; font-size:11px; word-break:break-all;" id="adminCssTag"></div>
+          <div style="font-family:monospace; font-size:11px; word-break:break-all;" id="adminJsTag"></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h1 style="font-size:16px;">Upload New Icon</h1>
+      <div class="row">
+        <div>
+          <label>Icon Name (unique)</label>
+          <input type="text" id="newName" placeholder="e.g. home, user, sparkles">
+        </div>
+        <div>
+          <label>Style</label>
+          <select id="newCategory">
+            <option value="colorful">Colorful</option>
+            <option value="mono">Outline / Mono</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Category (required — select where this icon belongs)</label>
+      <select id="newGroup">
+        <option value="" selected disabled>-- Select a category --</option>
+        <option value="brands">Brands</option>
+        <option value="ui-simple">UI &amp; Simple Icons</option>
+        <option value="arrows">Arrows &amp; Directional</option>
+        <option value="security-system">Security &amp; System</option>
+        <option value="files-documents">Files &amp; Documents</option>
+        <option value="communication-media">Communication &amp; Media</option>
+      </select>
+
+      <label>SVG Code</label>
+      <textarea id="newSvg" placeholder="Paste full <svg>...</svg> code here"></textarea>
+
+      <div class="file-btn-row">
+        <label class="file-btn-label" for="svgFileInput">Upload SVG Image</label>
+        <input type="file" id="svgFileInput" accept=".svg,image/svg+xml">
+        <span class="hint" id="fileNameLabel"></span>
+      </div>
+
+      <label>Live Preview</label>
+      <div class="preview-box" id="previewBox"><span class="preview-empty">Preview will appear here</span></div>
+
+      <div style="display:flex; align-items:center; gap:10px; margin-top:16px;">
+        <label style="display:flex; align-items:center; gap:8px; margin:0; cursor:pointer;">
+          <input type="checkbox" id="sanitizeToggle" style="width:16px;height:16px;">
+          <span>Sanitize &amp; Optimize SVG (removes editor clutter, comments, embedded images)</span>
+        </label>
+      </div>
+
+      <div id="checklistBox" style="display:none; margin-top:12px; background:#0e1219; border:1px solid var(--border); border-radius:8px; padding:14px;">
+        <div id="checklistSteps"></div>
+      </div>
+
+      <div id="compareBox" style="display:none; margin-top:12px;">
+        <div style="display:flex; gap:12px;">
+          <div style="flex:1; text-align:center;">
+            <div class="hint">Before</div>
+            <div class="preview-box" id="beforePreview" style="min-height:70px;"></div>
+          </div>
+          <div style="flex:1; text-align:center;">
+            <div class="hint">After</div>
+            <div class="preview-box" id="afterPreview" style="min-height:70px;"></div>
+          </div>
+        </div>
+        <div id="sizeStats" style="text-align:center; font-size:12px; color:var(--muted); margin-top:8px;"></div>
+        <div class="modal-actions" style="margin-top:10px;">
+          <button type="button" class="btn btn-primary" id="confirmOptimizedBtn">Confirm &amp; Upload</button>
+          <button type="button" class="btn btn-secondary" id="cancelOptimizedBtn">Cancel / Discard</button>
+        </div>
+      </div>
+
+      <div class="file-btn-row" style="margin-top:14px;">
+        <button type="button" class="secondary" id="clearSvgBtn" style="margin:0;">Remove All / Clear SVG</button>
+      </div>
+
+      <div class="hint">Duplicate names are automatically rejected.</div>
+      <button onclick="uploadIcon()" id="uploadIconBtn">Upload Icon</button>
+      <div id="uploadMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <div class="top-bar">
+        <h1 style="font-size:16px;">Sanitized Reports</h1>
+      </div>
+      <div id="reportsEmpty" class="hint">No reports yet — run "Sanitize &amp; Optimize" on an icon to see a report here.</div>
+      <div id="reportsList"></div>
+    </div>
+
+    <div class="card">
+      <h1 style="font-size:16px;">Existing Icons</h1>
+      <div id="listMsg" class="msg"></div>
+      <table>
+        <thead><tr><th></th><th>Name</th><th>Style</th><th>Category</th><th></th></tr></thead>
+        <tbody id="iconTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="/cdn/icons.js" defer></script>
+<script>
+  const TOKEN_KEY = 'glyphcraft_admin_token';
+  const GROUP_LABELS = {
+    'brands': 'Brands',
+    'ui-simple': 'UI & Simple',
+    'arrows': 'Arrows & Directional',
+    'security-system': 'Security & System',
+    'files-documents': 'Files & Documents',
+    'communication-media': 'Communication & Media',
+  };
+
+  function getToken() { return localStorage.getItem(TOKEN_KEY); }
+  function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+  function showView() {
+    const token = getToken();
+    document.getElementById('loginView').style.display = token ? 'none' : 'block';
+    document.getElementById('dashboard').style.display = token ? 'block' : 'none';
+    if (token) loadIcons();
+  }
+
+  async function requestLoginLink() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const phone = document.getElementById('loginPhone').value.trim();
+    const msg = document.getElementById('loginMsg');
+    const fallbackBox = document.getElementById('whatsappFallbackBox');
+    msg.className = 'msg';
+    fallbackBox.style.display = 'none';
+
+    if (!email || !phone) {
+      msg.className = 'msg error';
+      msg.textContent = 'Please try again, wrong number or wrong email';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/system-x-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Please try again, wrong number or wrong email');
+
+      if (data.status === 'fallback' && data.whatsappClickLink) {
+        const link = document.getElementById('whatsappFallbackLink');
+        link.href = data.whatsappClickLink;
+        fallbackBox.style.display = 'block';
+      }
+      msg.className = 'msg success';
+      msg.textContent = data.message;
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = e.message;
+    }
+  }
+
+  async function verifyMagicLink() {
+    const params = new URLSearchParams(window.location.search);
+    const magic = params.get('magic');
+    if (!magic) return;
+
+    const msg = document.getElementById('loginMsg');
+    try {
+      const res = await fetch('/api/system-x-verify?magic=' + encodeURIComponent(magic));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'This login link is invalid or has expired.');
+      setToken(data.token);
+      window.history.replaceState({}, '', '/admin/'); // clean the token out of the URL bar
+      showView();
+      loadCdnLinks();
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = e.message;
+    }
+  }
+
+  function logout() {
+    clearToken();
+    showView();
+  }
+
+  // ---------- Live preview + SVG file upload ----------
+
+  const svgTextarea = document.getElementById('newSvg');
+  const previewBox = document.getElementById('previewBox');
+  const svgFileInput = document.getElementById('svgFileInput');
+  const fileNameLabel = document.getElementById('fileNameLabel');
+
+  function updatePreview() {
+    const code = svgTextarea.value.trim();
+    if (code && code.indexOf('<svg') !== -1) {
+      previewBox.innerHTML = code;
+    } else {
+      previewBox.innerHTML = '<span class="preview-empty">Preview will appear here</span>';
+    }
+  }
+
+  svgTextarea.addEventListener('input', updatePreview);
+
+  svgFileInput.addEventListener('change', () => {
+    const file = svgFileInput.files[0];
+    if (!file) return;
+    fileNameLabel.textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      svgTextarea.value = e.target.result;
+      updatePreview();
+    };
+    reader.readAsText(file);
+  });
+
+  async function uploadIcon() {
+    const name = document.getElementById('newName').value.trim();
+    const category = document.getElementById('newCategory').value;
+    const group = document.getElementById('newGroup').value;
+    const svg_code = document.getElementById('newSvg').value.trim();
+    const msg = document.getElementById('uploadMsg');
+    msg.className = 'msg';
+
+    if (!name || !svg_code) {
+      msg.className = 'msg error';
+      msg.textContent = 'Name and SVG code are required.';
+      return;
+    }
+    if (!group) {
+      msg.className = 'msg error';
+      msg.textContent = 'Please select a category for this icon.';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/icons', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + getToken(),
+        },
+        body: JSON.stringify({ name, category, group, svg_code }),
+      });
+      const data = await res.json();
+      if (data.errors && data.errors.length) {
+        throw new Error(data.errors[0].error);
+      }
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+      msg.className = 'msg success';
+      msg.textContent = 'Icon uploaded successfully.';
+      document.getElementById('newName').value = '';
+      document.getElementById('newSvg').value = '';
+      document.getElementById('newGroup').value = '';
+      fileNameLabel.textContent = '';
+      updatePreview();
+      loadIcons();
+      if (window.ColorIconLab) window.ColorIconLab.reload();
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = e.message;
+    }
+  }
+
+  async function deleteIcon(name) {
+    if (!confirm('Delete icon "' + name + '"? This cannot be undone.')) return;
+    try {
+      const res = await fetch('/api/icons?name=' + encodeURIComponent(name), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + getToken() },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      loadIcons();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function loadIcons() {
+    const msg = document.getElementById('listMsg');
+    const body = document.getElementById('iconTableBody');
+    msg.className = 'msg';
+    try {
+      const res = await fetch('/api/icons');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load icons');
+      const icons = data.icons || [];
+      if (icons.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">No icons uploaded yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = icons
+        .map(
+          (icon) => `
+        <tr>
+          <td><span class="myicon myicon-${icon.name} icon-preview"></span></td>
+          <td>${icon.name}</td>
+          <td>${icon.category}</td>
+          <td>${GROUP_LABELS[icon.group_name] || icon.group_name || '-'}</td>
+          <td><button class="del-btn" onclick="deleteIcon('${icon.name}')">Delete</button></td>
+        </tr>
+      `
+        )
+        .join('');
+      if (window.ColorIconLab) window.ColorIconLab.reload();
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = e.message;
+    }
+  }
+
+  // ---------- CDN Link Manager ----------
+
+  async function loadCdnLinks() {
+    const statusEl = document.getElementById('activeLinkStatus');
+    const msg = document.getElementById('cdnLinkMsg');
+    msg.className = 'msg';
+    try {
+      const res = await fetch('/api/cdn-links', {
+        headers: { Authorization: 'Bearer ' + getToken() },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load CDN links');
+
+      // Admin permanent link
+      document.getElementById('adminCssTag').textContent = data.adminLink.cssTag;
+      document.getElementById('adminJsTag').textContent = data.adminLink.jsTag;
+
+      // Active public link
+      const activeCssTag = document.getElementById('activeCssTag');
+      const activeJsTag = document.getElementById('activeJsTag');
+      const publicToggle = document.getElementById('publicToggle');
+      const publicToggleLabel = document.getElementById('publicToggleLabel');
+
+      if (data.activeLink) {
+        activeCssTag.value = data.activeLink.cssTag;
+        activeJsTag.value = data.activeLink.jsTag;
+        publicToggle.checked = !!data.activeLink.is_public;
+        publicToggle.disabled = false;
+        const expires = new Date(data.activeLink.expires_at);
+        statusEl.textContent =
+          'Active public link — expires ' + expires.toLocaleString() +
+          (data.activeLink.is_public ? '' : ' (currently PRIVATE — hidden from external sites)');
+      } else {
+        activeCssTag.value = '';
+        activeJsTag.value = '';
+        publicToggle.checked = false;
+        publicToggle.disabled = true;
+        statusEl.textContent = 'No active public link yet. Click "Generate CDN Link" to create one.';
+      }
+      publicToggleLabel.textContent = 'Public (external sites can load icons)';
+
+      // Pending link
+      const pendingBox = document.getElementById('pendingLinkBox');
+      const pushBtn = document.getElementById('pushLinkBtn');
+      if (data.pendingLink) {
+        pendingBox.style.display = 'block';
+        pushBtn.disabled = false;
+        document.getElementById('pendingCssTag').textContent = data.pendingLink.cssTag;
+        document.getElementById('pendingJsTag').textContent = data.pendingLink.jsTag;
+      } else {
+        pendingBox.style.display = 'none';
+        pushBtn.disabled = true;
+      }
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = e.message;
+    }
+  }
+
+  async function cdnLinkAction(action) {
+    const msg = document.getElementById('cdnLinkMsg');
+    msg.className = 'msg';
+    try {
+      const res = await fetch('/api/cdn-links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + getToken(),
+        },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Action failed');
+      await loadCdnLinks();
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = e.message;
+    }
+  }
+
+  document.getElementById('generateLinkBtn').addEventListener('click', () => cdnLinkAction('generate'));
+  document.getElementById('pushLinkBtn').addEventListener('click', () => {
+    if (confirm('Pushing will immediately break the OLD public link on every external site using it. Continue?')) {
+      cdnLinkAction('push');
+    }
+  });
+  document.getElementById('publicToggle').addEventListener('change', () => cdnLinkAction('toggle'));
+
+  function copyField(id, btnId) {
+    const el = document.getElementById(id);
+    navigator.clipboard.writeText(el.value || el.textContent).then(() => {
+      const btn = document.getElementById(btnId);
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => (btn.textContent = old), 1200);
+    });
+  }
+  document.getElementById('copyCssBtn').addEventListener('click', () => copyField('activeCssTag', 'copyCssBtn'));
+  document.getElementById('copyJsBtn').addEventListener('click', () => copyField('activeJsTag', 'copyJsBtn'));
+
+  showView();
+  if (getToken()) loadCdnLinks();
+  verifyMagicLink();
+</script>
+<script src="optimizer.js" defer></script>
+</body>
+</html>
