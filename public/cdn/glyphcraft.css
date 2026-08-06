@@ -1,0 +1,36 @@
+/*
+ * ColorIconLab — permanent CDN stylesheet
+ * https://your-icon-library.vercel.app/cdn/glyphcraft.css
+ */
+
+.myicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: -0.125em;
+  color: inherit;
+}
+
+.myicon svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  display: block;
+}
+
+/* Optional size helper classes */
+.myicon-sm svg { width: 0.75em; height: 0.75em; }
+.myicon-lg svg { width: 1.5em; height: 1.5em; }
+.myicon-xl svg { width: 2em; height: 2em; }
+.myicon-2x svg { width: 2.5em; height: 2.5em; }
+.myicon-3x svg { width: 3em; height: 3em; }
+
+/* Simple spin utility, opt-in via extra class */
+.myicon-spin svg {
+  animation: myicon-spin 1s linear infinite;
+}
+@keyframes myicon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
