@@ -1,0 +1,11 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/cdn/:token.css", "destination": "/api/cdn-serve?type=css&token=:token" },
+    { "source": "/cdn/:token.js", "destination": "/api/cdn-serve?type=js&token=:token" }
+  ],
+  "crons": [
+    { "path": "/api/cron-expire-links", "schedule": "0 3 * * *" }
+  ]
+}
